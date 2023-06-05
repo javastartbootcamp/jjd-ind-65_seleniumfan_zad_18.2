@@ -12,24 +12,34 @@ public class PriceCalculator {
             return 0;
         }
 
+        double totalSum = products.stream()
+                .mapToDouble(Product::getPrice)
+                .sum();
         if (Objects.isNull(coupons)) {
-            return products.stream()
-                    .mapToDouble(Product::getPrice)
-                    .sum();
+            return totalSum;
         }
+        Map<Category, Double> categoryPriceMap = sumOfPricesByCategory(products);
+        double maxDiscountAmount = findMaxDiscountByCategory(coupons, categoryPriceMap);
+        maxDiscountAmount = calculateMaxTotalDiscount(coupons, totalSum, maxDiscountAmount);
+        return roundToTwoPlaces(totalSum - maxDiscountAmount);
+    }
 
+    private static double calculateMaxTotalDiscount(List<Coupon> coupons, double totalSum, double maxDiscountAmount) {
+        Optional<Coupon> couponWithoutCategory = coupons.stream()
+                .filter(coupon -> Objects.isNull(coupon.getCategory()))
+                .findFirst();
+        if (couponWithoutCategory.isPresent()) {
+            double discountAllProducts = totalSum * (couponWithoutCategory.get().getDiscountValueInPercents() / 100.);
+            maxDiscountAmount = Math.max(maxDiscountAmount, discountAllProducts);
+        }
+        return maxDiscountAmount;
+    }
+
+    private static double findMaxDiscountByCategory(List<Coupon> coupons, Map<Category, Double> categoryPriceMap) {
         Map<Category, Integer> categoryWithDiscountMap = coupons.stream()
                 .collect(Collectors.toMap(Coupon::getCategory, Coupon::getDiscountValueInPercents));
-
-        Map<Category, Double> categoryPriceMap = new HashMap<>();
-        for (Product product : products) {
-            categoryPriceMap.put(product.getCategory(), categoryPriceMap.getOrDefault(product.getCategory(), 0.0) + product.getPrice());
-        }
-
         double maxDiscountAmount = 0;
-        double sum = 0;
         for (Map.Entry<Category, Double> entry : categoryPriceMap.entrySet()) {
-            sum += entry.getValue();
             if (categoryWithDiscountMap.containsKey(entry.getKey())) {
                 double discountAmount = entry.getValue() * (categoryWithDiscountMap.get(entry.getKey()) / 100.);
                 if (discountAmount > maxDiscountAmount) {
@@ -37,16 +47,15 @@ public class PriceCalculator {
                 }
             }
         }
+        return maxDiscountAmount;
+    }
 
-        Optional<Coupon> couponWithoutCategory = coupons.stream()
-                .filter(coupon -> Objects.isNull(coupon.getCategory()))
-                .findFirst();
-
-        double discountAllProducts = 0;
-        if (couponWithoutCategory.isPresent()) {
-            discountAllProducts = sum * (couponWithoutCategory.get().getDiscountValueInPercents() / 100.);
+    private static Map<Category, Double> sumOfPricesByCategory(List<Product> products) {
+        Map<Category, Double> categoryPriceMap = new HashMap<>();
+        for (Product product : products) {
+            categoryPriceMap.merge(product.getCategory(), product.getPrice(), Double::sum);
         }
-        return discountAllProducts > maxDiscountAmount ? roundToTwoPlaces(sum - discountAllProducts) : roundToTwoPlaces(sum - maxDiscountAmount);
+        return categoryPriceMap;
     }
 
     double roundToTwoPlaces(double number) {

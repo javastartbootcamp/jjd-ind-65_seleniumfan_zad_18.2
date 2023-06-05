@@ -63,7 +63,7 @@ public class PriceCalculatorTest {
         coupons.add(new Coupon(CAR, 20));
 
         // when
-        double result = priceCalculator.calculatePrice(products, null);
+        double result = priceCalculator.calculatePrice(products, coupons);
 
         // then
         assertThat(result).isEqualTo(15.78);
